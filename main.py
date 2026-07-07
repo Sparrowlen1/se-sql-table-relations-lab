@@ -17,9 +17,9 @@ df_boston = pd.read_sql("""
     WHERE o.city = 'Boston';
 """, conn)
 
-# 2. Offices with zero employees – only officeCode and city (HAVING used)
+# 2. Offices with zero employees – include the count (aggregate) in SELECT, use HAVING
 df_zero_emp = pd.read_sql("""
-    SELECT o.officeCode, o.city
+    SELECT o.officeCode, o.city, COUNT(e.employeeNumber) AS employee_count
     FROM Offices o
     LEFT JOIN Employees e ON o.officeCode = e.officeCode
     GROUP BY o.officeCode, o.city
@@ -96,22 +96,21 @@ df_customers = pd.read_sql("""
     GROUP BY off.officeCode, off.city;
 """, conn)
 
-# STEP 6 - Part 6: Subquery (using CTE for clarity)
+# STEP 6 - Part 6: Subquery (direct subquery in WHERE clause)
 df_under_20 = pd.read_sql("""
-    WITH low_products AS (
-        SELECT productCode
-        FROM OrderDetails od
-        JOIN Orders o ON od.orderNumber = o.orderNumber
-        GROUP BY productCode
-        HAVING COUNT(DISTINCT o.customerNumber) < 20
-    )
     SELECT DISTINCT e.employeeNumber, e.firstName, e.lastName, off.city, off.officeCode
     FROM Employees e
     JOIN Offices off ON e.officeCode = off.officeCode
     JOIN Customers c ON e.employeeNumber = c.salesRepEmployeeNumber
     JOIN Orders o ON c.customerNumber = o.customerNumber
     JOIN OrderDetails od ON o.orderNumber = od.orderNumber
-    WHERE od.productCode IN (SELECT productCode FROM low_products);
+    WHERE od.productCode IN (
+        SELECT productCode
+        FROM OrderDetails od2
+        JOIN Orders o2 ON od2.orderNumber = o2.orderNumber
+        GROUP BY productCode
+        HAVING COUNT(DISTINCT o2.customerNumber) < 20
+    );
 """, conn)
 
 # Close the connection
