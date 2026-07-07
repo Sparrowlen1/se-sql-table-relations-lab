@@ -8,8 +8,8 @@ conn = sqlite3.connect('data.sqlite')
 # Display schema (optional)
 pd.read_sql("""SELECT * FROM sqlite_master""", conn)
 
-# STEP 1
-# Return the first and last names and the job titles for all employees in Boston.
+# STEP 1 - Part 1: Join and Filter
+# 1. Employees in Boston
 df_boston = pd.read_sql("""
     SELECT e.firstName, e.lastName, e.jobTitle
     FROM Employees e
@@ -17,18 +17,17 @@ df_boston = pd.read_sql("""
     WHERE o.city = 'Boston';
 """, conn)
 
-# STEP 2
-# Are there any offices that have zero employees?
+# 2. Offices with zero employees (only officeCode and city, using HAVING)
 df_zero_emp = pd.read_sql("""
-    SELECT o.officeCode, o.city, COUNT(e.employeeNumber) AS employee_count
+    SELECT o.officeCode, o.city
     FROM Offices o
     LEFT JOIN Employees e ON o.officeCode = e.officeCode
     GROUP BY o.officeCode, o.city
     HAVING COUNT(e.employeeNumber) = 0;
 """, conn)
 
-# STEP 3
-# Return all employees' first/last name and office city/state (include those without an office)
+# STEP 2 - Part 2: Type of Join
+# All employees with office city/state (include those without an office)
 df_employee = pd.read_sql("""
     SELECT e.firstName, e.lastName, o.city, o.state
     FROM Employees e
@@ -36,7 +35,6 @@ df_employee = pd.read_sql("""
     ORDER BY e.firstName, e.lastName;
 """, conn)
 
-# STEP 4
 # Customers who have not placed an order – contact info and sales rep employee number
 df_contacts = pd.read_sql("""
     SELECT c.contactFirstName, c.contactLastName, c.phone, c.salesRepEmployeeNumber
@@ -46,8 +44,8 @@ df_contacts = pd.read_sql("""
     ORDER BY c.contactLastName;
 """, conn)
 
-# STEP 5
-# All customer contacts with payment amounts and dates, sorted descending by amount
+# STEP 3 - Part 3: Built‑In Function
+# Payments sorted descending by amount (cast to REAL)
 df_payment = pd.read_sql("""
     SELECT c.contactFirstName, c.contactLastName, p.amount, p.paymentDate
     FROM Customers c
@@ -55,8 +53,8 @@ df_payment = pd.read_sql("""
     ORDER BY CAST(p.amount AS REAL) DESC;
 """, conn)
 
-# STEP 6
-# Employees whose customers have average credit limit > 90k – return emp# , name, and number of customers
+# STEP 4 - Part 4: Joining and Grouping
+# Employees with customer avg credit limit > 90k (top 4 by number of customers)
 df_credit = pd.read_sql("""
     SELECT e.employeeNumber, e.firstName, e.lastName, COUNT(c.customerNumber) AS num_customers
     FROM Employees e
@@ -67,8 +65,7 @@ df_credit = pd.read_sql("""
     LIMIT 4;
 """, conn)
 
-# STEP 7
-# Product name, number of orders, and total units sold – sort by total units descending
+# Product name, number of orders, and total units sold
 df_product_sold = pd.read_sql("""
     SELECT p.productName,
            COUNT(DISTINCT od.orderNumber) AS numorders,
@@ -79,8 +76,8 @@ df_product_sold = pd.read_sql("""
     ORDER BY totalunits DESC;
 """, conn)
 
-# STEP 8
-# Product name, code, and total number of distinct customers who ordered each product
+# STEP 5 - Part 5: Multiple Joins
+# Product name, code, and number of distinct customers who ordered each product
 df_total_customers = pd.read_sql("""
     SELECT p.productName, p.productCode, COUNT(DISTINCT o.customerNumber) AS numpurchasers
     FROM Products p
@@ -90,8 +87,7 @@ df_total_customers = pd.read_sql("""
     ORDER BY numpurchasers DESC;
 """, conn)
 
-# STEP 9
-# Number of customers per office – return office code, city, and customer count
+# Number of customers per office
 df_customers = pd.read_sql("""
     SELECT off.officeCode, off.city, COUNT(c.customerNumber) AS n_customers
     FROM Offices off
@@ -100,23 +96,21 @@ df_customers = pd.read_sql("""
     GROUP BY off.officeCode, off.city;
 """, conn)
 
-# STEP 10
-# Employees who sold products ordered by fewer than 20 customers
+# STEP 6 - Part 6: Subquery (revised to use a direct subquery in WHERE)
 df_under_20 = pd.read_sql("""
-    WITH low_products AS (
-        SELECT od.productCode
-        FROM OrderDetails od
-        JOIN Orders o ON od.orderNumber = o.orderNumber
-        GROUP BY od.productCode
-        HAVING COUNT(DISTINCT o.customerNumber) < 20
-    )
     SELECT DISTINCT e.employeeNumber, e.firstName, e.lastName, off.city, off.officeCode
     FROM Employees e
     JOIN Offices off ON e.officeCode = off.officeCode
     JOIN Customers c ON e.employeeNumber = c.salesRepEmployeeNumber
     JOIN Orders o ON c.customerNumber = o.customerNumber
     JOIN OrderDetails od ON o.orderNumber = od.orderNumber
-    WHERE od.productCode IN (SELECT productCode FROM low_products);
+    WHERE od.productCode IN (
+        SELECT od2.productCode
+        FROM OrderDetails od2
+        JOIN Orders o2 ON od2.orderNumber = o2.orderNumber
+        GROUP BY od2.productCode
+        HAVING COUNT(DISTINCT o2.customerNumber) < 20
+    );
 """, conn)
 
 # Close the connection
